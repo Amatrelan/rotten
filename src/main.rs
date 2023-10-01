@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{env::current_dir, path::PathBuf};
 
 /// Simple tool to symlink dotfiles
 ///
@@ -8,44 +8,74 @@ use clap::Parser;
 
 mod cli;
 mod config;
+mod log;
 mod utils;
 
 fn main() -> anyhow::Result<()> {
     let matches = cli::CLI::parse();
 
+    log::set_logger();
+
     match matches.command {
         cli::Commands::Init => {
             let path = std::env::current_dir()?;
-            config::initialize_config(&path)?;
+            let cm = config::ConfigManager::try_new(&path)?;
             println!("Initialized rotten to {path:?}");
-            Ok(())
+            return Ok(());
         }
         cli::Commands::New { path } => {
+            let path = std::path::PathBuf::from(path);
             let path = utils::parse_path(&path)?;
-            config::initialize_config(&path)?;
+            let cm = config::ConfigManager::try_new(&path)?;
             println!("Initialized rotten to {path:?}");
-            Ok(())
+            return Ok(());
         }
-        cli::Commands::Add { source, target } => {
-            let source = utils::parse_path(&source)?;
-            let root =
-                config::get_config_path().expect("You need to initialize rotten before adding");
+        cli::Commands::Add {
+            source,
+            target,
+            name,
+        } => {
+            let source = std::path::PathBuf::from(&source);
+            let source_full = utils::parse_path(&source)?;
+            let mut cm = config::ConfigManager::try_load()?;
 
-            let root_path = PathBuf::from(&root);
-            if !root_path.exists() {
-                anyhow::bail!("Rotten root folder doens't exists, initialize");
-            }
-            if !root_path.join("rotten.toml").exists() {
-                anyhow::bail!("rotten.toml don't exist in root")
-            }
+            let name = if let Some(name) = name {
+                name
+            } else {
+                let source = source.to_str().unwrap();
+                source.split("/").last().unwrap().to_string()
+            };
 
-            let target = format!("{root}/{target}");
+            let root = current_dir().expect("Failed to get current directory");
+            let target = root.join(target);
             let target = utils::parse_path(&target)?;
-            utils::copy_recursive(&source, &target)?;
-            Ok(())
+
+            let source = std::path::PathBuf::from(source);
+            if !source.exists() {
+                anyhow::bail!("Source {source:?} doesn't exist");
+            }
+
+            println!("Creating link from `{:?}` to `{:?}`", &source_full, &target);
+            let sym = config::Symlink {
+                source,
+                target: target.clone(),
+            };
+            cm.add_link(name, sym)?;
+            utils::copy_recursive(&source_full, &target)?;
+
+            return Ok(());
         }
         cli::Commands::Link => {
-            todo!("Link all to places");
+            let cm = config::ConfigManager::try_load().expect("Failed to read config");
+            let config = cm.get_config()?;
+
+            for (key, value) in config.links {
+                let source = value.symlink.source;
+                let target = value.symlink.target;
+                println!("Linking {key}: {source:?} => {target:?}");
+            }
+
+            return Ok(());
         }
     }
 }

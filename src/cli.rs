@@ -19,11 +19,15 @@ pub enum Commands {
     /// Add new path to rotten, this will copy/move `source` path to `target` path and automatically
     /// symlink it back to `source` path
     Add {
-        /// Source path to add rotten managed folder.
+        // Provide custom name
         #[clap(short, long)]
+        name: Option<String>,
+
+        /// Source path to add rotten managed folder.
+        #[clap(short, long, value_name = "FILE")]
         source: String,
         /// Target path where in rotten folder this is added.
-        #[clap(short, long)]
+        #[clap(short, long, value_name = "FILE")]
         target: String,
     },
     /// Link all rotten managed things into places

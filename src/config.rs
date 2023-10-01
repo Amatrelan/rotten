@@ -2,65 +2,129 @@ use std::{collections::HashMap, io::prelude::*, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// Use this when just reading config
-pub fn get_config(s: &str) -> anyhow::Result<Config> {
-    let a = toml_edit::de::from_str::<Config>(s).unwrap();
-    Ok(a)
+#[derive(Debug, Default)]
+pub struct ConfigManager {
+    state_file: PathBuf,
+    config_file: PathBuf,
 }
 
-/// Use this when editing config, so comments are kept in place and not removed
-pub fn get_value_mut(s: &str) -> anyhow::Result<toml_edit::Value> {
-    let a: toml_edit::Value = s.parse::<toml_edit::Value>().unwrap();
-    Ok(a)
-}
+impl ConfigManager {
+    #[tracing::instrument]
+    pub fn try_new(new_path: &PathBuf) -> anyhow::Result<Self> {
+        let state = get_state_path()?;
+        tracing::info!("State file: {:?}", state);
 
-pub fn write_config(s: toml_edit::Value) -> anyhow::Result<()> {
-    panic!()
-}
+        std::fs::create_dir_all(&new_path)?;
+        let config_path = new_path.join("rotten.toml");
 
-pub fn initialize_config(path: &PathBuf) -> anyhow::Result<()> {
-    let path = PathBuf::from(path);
-    let rotten_path = path.join("rotten.toml");
+        // This here just we create config file and that's it.
+        {
+            tracing::info!("Creating empty config");
+            let mut f = std::fs::File::create(&config_path).expect("Failed to create config file");
+            let c = Config::default();
+            let c = toml_edit::ser::to_string(&c).expect("Failed to serialize default config");
+            f.write_all(c.as_bytes())?;
+        }
 
-    if rotten_path.exists() {
-        anyhow::bail!("{path:?} exists, move rotten.toml to regenerate");
+        let mut f = std::fs::File::create(&state).expect("Failed to create state file");
+        f.write_all(&config_path.to_str().unwrap().as_bytes())?;
+
+        Ok(Self {
+            state_file: state,
+            config_file: config_path,
+        })
     }
-    setup_state(&path)?;
-    std::fs::create_dir_all(&path)?;
 
-    let mut file = std::fs::File::create(rotten_path)?;
-    let config = generate_commented_empty();
-    file.write_all(config.as_bytes())?;
+    #[tracing::instrument]
+    pub fn try_load() -> anyhow::Result<Self> {
+        let state = get_state_path()?;
 
-    Ok(())
+        tracing::info!("State file: {:?}", state);
+
+        let config_file = Self::get_config_path(&state)?;
+
+        Ok(Self {
+            state_file: state,
+            config_file,
+        })
+    }
+
+    #[tracing::instrument]
+    pub fn get_config(&self) -> anyhow::Result<Config> {
+        let f =
+            std::fs::read_to_string(&self.config_file).expect("Failed to read config file content");
+
+        let a: Config = toml_edit::de::from_str(&f).expect("Failed to read config file");
+
+        return Ok(a);
+    }
+
+    pub fn add_link(&mut self, name: String, link: Symlink) -> anyhow::Result<()> {
+        let mut config_data = {
+            let data = std::fs::read_to_string(&self.config_file)?;
+            let toml: toml_edit::Document = data.parse()?;
+            toml
+        };
+
+        let links = config_data["links"]
+            .as_table_mut()
+            .expect("Links wasn't table");
+        let target = link.target.to_str().unwrap();
+        let source = link.source.to_str().unwrap();
+        links[&name] = toml_edit::table();
+        links[&name]["source"] = toml_edit::value(target);
+        links[&name]["target"] = toml_edit::value(source);
+
+        self.write_config(config_data);
+
+        Ok(())
+    }
+
+    pub fn write_config(&mut self, config: toml_edit::Document) {
+        let mut f = std::fs::File::create(&self.config_file).expect("Failed to create config file");
+
+        let config = config.to_string();
+        f.write_all(config.as_bytes())
+            .expect("Failed to write config file");
+    }
+
+    #[tracing::instrument]
+    pub fn set_config_path(&self, p: &str) {
+        let mut f =
+            std::fs::File::create(&self.state_file).expect("Failed to open rotten state file");
+        f.write_all(p.as_bytes())
+            .expect("Failed to write to state file");
+    }
+
+    fn get_config_path(state: &PathBuf) -> anyhow::Result<PathBuf> {
+        let state_data = std::fs::read_to_string(&state);
+
+        match state_data {
+            Err(e) => {
+                return anyhow::bail!("Failed to read state file: {e}");
+            }
+            Ok(val) => match val.lines().next() {
+                None => anyhow::bail!("State file don't have config path"),
+                Some(line) => {
+                    let file_path = std::path::PathBuf::from(line);
+                    match file_path.exists() {
+                        true => Ok(file_path),
+                        false => anyhow::bail!("Config file doesn't exist what is in state file"),
+                    }
+                }
+            },
+        }
+    }
 }
-
-fn setup_state(path: &PathBuf) -> anyhow::Result<()> {
-    let state_file = get_state()?;
-    let path = path.to_str().unwrap();
-    let mut file = std::fs::File::create(state_file)?;
-    // This is not safe in Windows, so have fun
-    file.write_all(path.as_bytes())?;
-    Ok(())
-}
-
-pub fn get_config_path() -> anyhow::Result<String> {
-    let state = get_state()?;
-    Ok(std::fs::read_to_string(state)?.trim().to_string())
-}
-
-fn get_state() -> anyhow::Result<PathBuf> {
+fn get_state_path() -> anyhow::Result<PathBuf> {
     let config_path = if let Ok(xsd_state_home) = std::env::var("XSD_STATE_HOME") {
         xsd_state_home
     } else {
-        // If HOME don't exist, panic, I don't care that much about windows at this stage
-        // and in linux it 99% time is set, and for me this works.
-        // TODO: Fix this some day, perhaps if some people ask for this
         let home = std::env::var("HOME")?;
         format!("{home}/.local/state")
     };
 
-    Ok(PathBuf::from(config_path).join("rotten_state"))
+    Ok(PathBuf::from(config_path).join("rotten"))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -71,15 +135,14 @@ pub struct Config {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LinkConfig {
-    pub name: Option<String>,
     #[serde(flatten)]
     pub symlink: Symlink,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Symlink {
-    pub source: String,
-    pub target: String,
+    pub source: PathBuf,
+    pub target: PathBuf,
 }
 
 impl Default for Config {
@@ -95,17 +158,14 @@ fn generate_empty() -> &'static str {
     return r#"terminal = "bash" # Use this shell, defaults to `$SHELL` if not set
 
 [links.nvim]
-name = "nvim" # Optional, this is used only when logging
 source = "nvim" # path in rotten folder what is linked
 target = "$XDG_CONFIG_HOME/nvim" # where source is linked
 
 [links.emacs]
-name = "emacs"
 source = "emacs/emacs"
 target = "$XDG_CONFIG_HOME/emacs"
 
 [links.doom]
-name = "doom-emacs"
 source = "emacs/doom"
 target = "$XDG_CONFIG_HOME/doom""#;
 }
