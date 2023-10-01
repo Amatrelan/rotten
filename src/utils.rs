@@ -1,10 +1,9 @@
-pub fn parse_path(path: &std::path::PathBuf) -> anyhow::Result<std::path::PathBuf> {
+pub fn parse_path(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> {
     let mut new_path: Vec<String> = vec![];
     for each in path.components() {
         let each = each.as_os_str().to_str().unwrap();
-        if each.starts_with('$') {
-            let val = &each[1..];
-            let val = std::env::var(val)?;
+        if let Some(stripped) = each.strip_prefix('$') {
+            let val = std::env::var(stripped)?;
             new_path.push(val);
             continue;
         }
@@ -19,7 +18,7 @@ pub fn parse_path(path: &std::path::PathBuf) -> anyhow::Result<std::path::PathBu
 
 pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> anyhow::Result<()> {
     if from.is_dir() {
-        let paths = std::fs::read_dir(&from)?;
+        let paths = std::fs::read_dir(from)?;
         for path in paths {
             let path = path?;
             if path.metadata()?.is_dir() {
@@ -31,8 +30,8 @@ pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> any
             }
 
             if path.metadata()?.is_file() {
-                let from_path = from.join(&path.path().file_name().unwrap());
-                let to_path = to.join(&path.path().file_name().unwrap());
+                let from_path = from.join(path.path().file_name().unwrap());
+                let to_path = to.join(path.path().file_name().unwrap());
                 if to_path.exists() {
                     anyhow::bail!("File {to_path:?} already exists");
                 }
@@ -44,7 +43,7 @@ pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> any
         if to.exists() {
             anyhow::bail!("File {to:?} already exists");
         }
-        std::fs::copy(&from, &to)?;
+        std::fs::copy(from, to)?;
     }
 
     Ok(())

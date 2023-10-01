@@ -1,4 +1,4 @@
-use std::{env::current_dir, path::PathBuf};
+use std::{env::current_dir};
 
 /// Simple tool to symlink dotfiles
 ///
@@ -12,23 +12,23 @@ mod log;
 mod utils;
 
 fn main() -> anyhow::Result<()> {
-    let matches = cli::CLI::parse();
+    let matches = cli::Cli::parse();
 
     log::set_logger();
 
     match matches.command {
         cli::Commands::Init => {
             let path = std::env::current_dir()?;
-            let cm = config::ConfigManager::try_new(&path)?;
+            let _cm = config::ConfigManager::try_new(&path)?;
             println!("Initialized rotten to {path:?}");
-            return Ok(());
+            Ok(())
         }
         cli::Commands::New { path } => {
             let path = std::path::PathBuf::from(path);
             let path = utils::parse_path(&path)?;
-            let cm = config::ConfigManager::try_new(&path)?;
+            let _cm = config::ConfigManager::try_new(&path)?;
             println!("Initialized rotten to {path:?}");
-            return Ok(());
+            Ok(())
         }
         cli::Commands::Add {
             source,
@@ -43,14 +43,13 @@ fn main() -> anyhow::Result<()> {
                 name
             } else {
                 let source = source.to_str().unwrap();
-                source.split("/").last().unwrap().to_string()
+                source.split('/').last().unwrap().to_string()
             };
 
             let root = current_dir().expect("Failed to get current directory");
             let target = root.join(target);
             let target = utils::parse_path(&target)?;
 
-            let source = std::path::PathBuf::from(source);
             if !source.exists() {
                 anyhow::bail!("Source {source:?} doesn't exist");
             }
@@ -63,7 +62,7 @@ fn main() -> anyhow::Result<()> {
             cm.add_link(name, sym)?;
             utils::copy_recursive(&source_full, &target)?;
 
-            return Ok(());
+            Ok(())
         }
         cli::Commands::Link => {
             let cm = config::ConfigManager::try_load().expect("Failed to read config");
@@ -75,7 +74,7 @@ fn main() -> anyhow::Result<()> {
                 println!("Linking {key}: {source:?} => {target:?}");
             }
 
-            return Ok(());
+            Ok(())
         }
     }
 }

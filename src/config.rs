@@ -1,7 +1,9 @@
-use std::{collections::HashMap, io::prelude::*, path::PathBuf};
-
 use serde::{Deserialize, Serialize};
+use std::io::Write;
+use std::{collections::HashMap, path::PathBuf};
 
+
+#[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct ConfigManager {
     state_file: PathBuf,
@@ -14,7 +16,7 @@ impl ConfigManager {
         let state = get_state_path()?;
         tracing::info!("State file: {:?}", state);
 
-        std::fs::create_dir_all(&new_path)?;
+        std::fs::create_dir_all(new_path)?;
         let config_path = new_path.join("rotten.toml");
 
         // This here just we create config file and that's it.
@@ -27,7 +29,7 @@ impl ConfigManager {
         }
 
         let mut f = std::fs::File::create(&state).expect("Failed to create state file");
-        f.write_all(&config_path.to_str().unwrap().as_bytes())?;
+        f.write_all(config_path.to_str().unwrap().as_bytes())?;
 
         Ok(Self {
             state_file: state,
@@ -97,11 +99,11 @@ impl ConfigManager {
     }
 
     fn get_config_path(state: &PathBuf) -> anyhow::Result<PathBuf> {
-        let state_data = std::fs::read_to_string(&state);
+        let state_data = std::fs::read_to_string(state);
 
         match state_data {
             Err(e) => {
-                return anyhow::bail!("Failed to read state file: {e}");
+                anyhow::bail!("Failed to read state file: {e}")
             }
             Ok(val) => match val.lines().next() {
                 None => anyhow::bail!("State file don't have config path"),
@@ -127,7 +129,7 @@ fn get_state_path() -> anyhow::Result<PathBuf> {
     Ok(PathBuf::from(config_path).join("rotten"))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Config {
     pub terminal: Option<String>,
     pub links: HashMap<String, LinkConfig>,
@@ -145,17 +147,9 @@ pub struct Symlink {
     pub target: PathBuf,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            terminal: None,
-            links: HashMap::new(),
-        }
-    }
-}
-
+#[allow(dead_code)]
 fn generate_empty() -> &'static str {
-    return r#"terminal = "bash" # Use this shell, defaults to `$SHELL` if not set
+    r#"terminal = "bash" # Use this shell, defaults to `$SHELL` if not set
 
 [links.nvim]
 source = "nvim" # path in rotten folder what is linked
@@ -167,16 +161,18 @@ target = "$XDG_CONFIG_HOME/emacs"
 
 [links.doom]
 source = "emacs/doom"
-target = "$XDG_CONFIG_HOME/doom""#;
+target = "$XDG_CONFIG_HOME/doom""#
 }
 
+#[allow(dead_code)]
 fn generate_commented_empty() -> String {
     generate_empty()
         .split('\n')
-        .map(|a| {
-            return format!("# {a}\n");
+        .fold(String::new(), |mut output, a| {
+            use std::fmt::Write;
+            let _ = write!(output, "# {a}\n");
+            output
         })
-        .collect()
 }
 
 #[cfg(test)]
@@ -186,6 +182,6 @@ mod config {
     #[test]
     fn validate_example() {
         let template = generate_empty();
-        toml_edit::de::from_str::<Config>(&template).unwrap();
+        toml_edit::de::from_str::<Config>(template).unwrap();
     }
 }

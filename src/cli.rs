@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
-pub struct CLI {
+pub struct Cli {
     #[clap(subcommand)]
     pub command: Commands,
 }
