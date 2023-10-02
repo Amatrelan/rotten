@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::{collections::HashMap, path::PathBuf};
 
-
 #[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct ConfigManager {
@@ -23,8 +22,7 @@ impl ConfigManager {
         {
             tracing::info!("Creating empty config");
             let mut f = std::fs::File::create(&config_path).expect("Failed to create config file");
-            let c = Config::default();
-            let c = toml_edit::ser::to_string(&c).expect("Failed to serialize default config");
+            let c = generate_empty();
             f.write_all(c.as_bytes())?;
         }
 
@@ -49,6 +47,18 @@ impl ConfigManager {
             state_file: state,
             config_file,
         })
+    }
+
+    pub fn get_config_root(&self) -> PathBuf {
+        let config_root = self
+            .config_file
+            .to_str()
+            .expect("Failed to read config path");
+
+        let mut config_root: Vec<&str> = config_root.split('/').collect();
+        config_root.pop();
+
+        std::path::PathBuf::from(config_root.join("/"))
     }
 
     #[tracing::instrument]
@@ -137,6 +147,7 @@ pub struct Config {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LinkConfig {
+    pub disabled: Option<bool>,
     #[serde(flatten)]
     pub symlink: Symlink,
 }
@@ -149,19 +160,12 @@ pub struct Symlink {
 
 #[allow(dead_code)]
 fn generate_empty() -> &'static str {
-    r#"terminal = "bash" # Use this shell, defaults to `$SHELL` if not set
-
+    r#"
 [links.nvim]
+disabled = true # You can disable also some links
 source = "nvim" # path in rotten folder what is linked
-target = "$XDG_CONFIG_HOME/nvim" # where source is linked
-
-[links.emacs]
-source = "emacs/emacs"
-target = "$XDG_CONFIG_HOME/emacs"
-
-[links.doom]
-source = "emacs/doom"
-target = "$XDG_CONFIG_HOME/doom""#
+target = "$HOME/.config/nvim" # where source is linked
+"#
 }
 
 #[allow(dead_code)]

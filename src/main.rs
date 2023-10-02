@@ -1,4 +1,4 @@
-use std::{env::current_dir};
+use std::env::current_dir;
 
 /// Simple tool to symlink dotfiles
 ///
@@ -11,6 +11,7 @@ mod config;
 mod log;
 mod utils;
 
+#[cfg(unix)]
 fn main() -> anyhow::Result<()> {
     let matches = cli::Cli::parse();
 
@@ -19,13 +20,6 @@ fn main() -> anyhow::Result<()> {
     match matches.command {
         cli::Commands::Init => {
             let path = std::env::current_dir()?;
-            let _cm = config::ConfigManager::try_new(&path)?;
-            println!("Initialized rotten to {path:?}");
-            Ok(())
-        }
-        cli::Commands::New { path } => {
-            let path = std::path::PathBuf::from(path);
-            let path = utils::parse_path(&path)?;
             let _cm = config::ConfigManager::try_new(&path)?;
             println!("Initialized rotten to {path:?}");
             Ok(())
@@ -46,10 +40,6 @@ fn main() -> anyhow::Result<()> {
                 source.split('/').last().unwrap().to_string()
             };
 
-            let root = current_dir().expect("Failed to get current directory");
-            let target = root.join(target);
-            let target = utils::parse_path(&target)?;
-
             if !source.exists() {
                 anyhow::bail!("Source {source:?} doesn't exist");
             }
@@ -57,9 +47,12 @@ fn main() -> anyhow::Result<()> {
             println!("Creating link from `{:?}` to `{:?}`", &source_full, &target);
             let sym = config::Symlink {
                 source,
-                target: target.clone(),
+                target: std::path::PathBuf::from(&target),
             };
             cm.add_link(name, sym)?;
+
+            let config_dir = cm.get_config_root();
+            let target = config_dir.join(target);
             utils::copy_recursive(&source_full, &target)?;
 
             Ok(())
@@ -69,12 +62,39 @@ fn main() -> anyhow::Result<()> {
             let config = cm.get_config()?;
 
             for (key, value) in config.links {
+                if let Some(disabled) = value.disabled {
+                    if disabled {
+                        println!("\"{key}\" was disabled, skipping");
+                        continue;
+                    }
+                }
+
                 let source = value.symlink.source;
+                let source = cm.get_config_root().join(source);
+
                 let target = value.symlink.target;
+                let target = utils::parse_path(&target)?;
+
+                if target.exists() {
+                    if !target.metadata().unwrap().is_symlink() {
+                        eprintln!("{target:?} already exists and isn't symlink, move it");
+                        std::process::exit(1);
+                    }
+                    println!("Removing old link {target:?}");
+                    std::fs::remove_file(&target).expect("Failed to remove {target}");
+                }
+
                 println!("Linking {key}: {source:?} => {target:?}");
+                std::os::unix::fs::symlink(source, target)
+                    .expect("Failed to symlink {source} to {target}");
             }
 
             Ok(())
         }
     }
+}
+
+#[cfg(not(unix))]
+fn main() {
+    eprintln!("Sorry not working on non unix right now");
 }

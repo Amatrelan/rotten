@@ -2,6 +2,11 @@ pub fn parse_path(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> 
     let mut new_path: Vec<String> = vec![];
     for each in path.components() {
         let each = each.as_os_str().to_str().unwrap();
+        if each == "~" {
+            let val = std::env::var("HOME")?;
+            new_path.push(val);
+            continue;
+        }
         if let Some(stripped) = each.strip_prefix('$') {
             let val = std::env::var(stripped)?;
             new_path.push(val);
@@ -12,7 +17,7 @@ pub fn parse_path(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> 
     }
 
     let path = new_path.join("/");
-    let path = std::env::current_dir()?.join(path);
+    let path = std::path::PathBuf::from(path);
     Ok(path)
 }
 
