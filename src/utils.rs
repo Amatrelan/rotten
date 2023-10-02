@@ -16,18 +16,23 @@ pub fn parse_path(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> 
         new_path.push(each.to_string());
     }
 
-    let path = new_path.join("/");
+    let mut path = new_path.join("/");
+    if path.starts_with("//") {
+        path = path[1..].to_string();
+    }
     let path = std::path::PathBuf::from(path);
     Ok(path)
 }
 
 pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> anyhow::Result<()> {
     if from.is_dir() {
+        std::fs::create_dir_all(&to)?;
+    }
+    if from.is_dir() {
         let paths = std::fs::read_dir(from)?;
         for path in paths {
             let path = path?;
             if path.metadata()?.is_dir() {
-                std::fs::create_dir_all(&path.path())?;
                 let from_new_path = from.join(path.path().file_name().unwrap());
                 let to_new_path = to.join(path.path().file_name().unwrap());
                 copy_recursive(&from_new_path, &to_new_path)?;
