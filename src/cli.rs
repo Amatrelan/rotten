@@ -10,6 +10,8 @@ pub struct Cli {
 pub enum Commands {
     /// Initialize rotten folder
     Init,
+    /// Setups state file, run in folder where your rotten.toml is
+    Setup,
     /// Add new path to rotten, this will copy/move `source` path to `target` path and automatically
     /// symlink it back to `source` path
     Add {

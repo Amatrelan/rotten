@@ -1,5 +1,3 @@
-use std::env::current_dir;
-
 /// Simple tool to symlink dotfiles
 ///
 /// # TODO list
@@ -20,8 +18,14 @@ fn main() -> anyhow::Result<()> {
     match matches.command {
         cli::Commands::Init => {
             let path = std::env::current_dir()?;
-            let _cm = config::ConfigManager::try_new(&path)?;
+            let cm = config::ConfigManager::try_new(&path).expect("Failed to setup state file");
+            cm.setup_config().expect("Failed to setup config file");
             println!("Initialized rotten to {path:?}");
+            Ok(())
+        }
+        cli::Commands::Setup => {
+            let path = std::env::current_dir()?;
+            config::ConfigManager::try_new(&path).expect("Failed to setup state file");
             Ok(())
         }
         cli::Commands::Add {
@@ -44,14 +48,14 @@ fn main() -> anyhow::Result<()> {
                 anyhow::bail!("Source {source:?} doesn't exist");
             }
 
-            println!("Creating link from `{:?}` to `{:?}`", &source_full, &target);
+            println!("Creating link `{:?}` => `{:?}`", &source_full, &target);
             let sym = config::Symlink {
                 source,
                 target: std::path::PathBuf::from(&target),
             };
             cm.add_link(name, sym)?;
 
-            let config_dir = cm.get_config_root();
+            let config_dir = cm.config_path;
             let target = config_dir.join(target);
             utils::copy_recursive(&source_full, &target)?;
 
@@ -70,7 +74,7 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 let source = value.symlink.source;
-                let source = cm.get_config_root().join(source);
+                let source = cm.config_path.join(source);
 
                 let target = value.symlink.target;
                 let target = utils::parse_path(&target)?;

@@ -5,8 +5,8 @@ use std::{collections::HashMap, path::PathBuf};
 #[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct ConfigManager {
-    state_file: PathBuf,
-    config_file: PathBuf,
+    pub state_file: PathBuf,
+    pub config_path: PathBuf,
 }
 
 impl ConfigManager {
@@ -15,56 +15,41 @@ impl ConfigManager {
         let state = get_state_path()?;
         tracing::info!("State file: {:?}", state);
 
-        std::fs::create_dir_all(new_path)?;
-        let config_path = new_path.join("rotten.toml");
-
-        // This here just we create config file and that's it.
-        {
-            tracing::info!("Creating empty config");
-            let mut f = std::fs::File::create(&config_path).expect("Failed to create config file");
-            let c = generate_empty();
-            f.write_all(c.as_bytes())?;
-        }
-
         let mut f = std::fs::File::create(&state).expect("Failed to create state file");
-        f.write_all(config_path.to_str().unwrap().as_bytes())?;
+        f.write_all(new_path.to_str().unwrap().as_bytes())?;
 
         Ok(Self {
             state_file: state,
-            config_file: config_path,
+            config_path: new_path.clone(),
         })
     }
 
     #[tracing::instrument]
     pub fn try_load() -> anyhow::Result<Self> {
         let state = get_state_path()?;
-
         tracing::info!("State file: {:?}", state);
-
-        let config_file = Self::get_config_path(&state)?;
+        let config_file = Self::get_config_root(&state)?;
 
         Ok(Self {
             state_file: state,
-            config_file,
+            config_path: config_file,
         })
     }
 
-    pub fn get_config_root(&self) -> PathBuf {
-        let config_root = self
-            .config_file
-            .to_str()
-            .expect("Failed to read config path");
-
-        let mut config_root: Vec<&str> = config_root.split('/').collect();
-        config_root.pop();
-
-        std::path::PathBuf::from(config_root.join("/"))
+    pub fn setup_config(&self) -> anyhow::Result<()> {
+        std::fs::create_dir_all(&self.config_path)?;
+        let config_path = self.config_path.join("rotten.toml");
+        tracing::info!("Creating empty config");
+        let mut f = std::fs::File::create(config_path).expect("Failed to create config file");
+        let c = generate_empty();
+        f.write_all(c.as_bytes())?;
+        Ok(())
     }
 
     #[tracing::instrument]
     pub fn get_config(&self) -> anyhow::Result<Config> {
-        let f =
-            std::fs::read_to_string(&self.config_file).expect("Failed to read config file content");
+        let f = std::fs::read_to_string(self.config_path.join("rotten.toml"))
+            .expect("Failed to read config file content");
 
         let a: Config = toml_edit::de::from_str(&f).expect("Failed to read config file");
 
@@ -73,7 +58,7 @@ impl ConfigManager {
 
     pub fn add_link(&mut self, name: String, link: Symlink) -> anyhow::Result<()> {
         let mut config_data = {
-            let data = std::fs::read_to_string(&self.config_file)?;
+            let data = std::fs::read_to_string(self.config_path.join("rotten.toml"))?;
             let toml: toml_edit::Document = data.parse()?;
             toml
         };
@@ -93,7 +78,8 @@ impl ConfigManager {
     }
 
     pub fn write_config(&mut self, config: toml_edit::Document) {
-        let mut f = std::fs::File::create(&self.config_file).expect("Failed to create config file");
+        let mut f = std::fs::File::create(self.config_path.join("rotten.toml"))
+            .expect("Failed to create config file");
 
         let config = config.to_string();
         f.write_all(config.as_bytes())
@@ -108,7 +94,7 @@ impl ConfigManager {
             .expect("Failed to write to state file");
     }
 
-    fn get_config_path(state: &PathBuf) -> anyhow::Result<PathBuf> {
+    pub fn get_config_root(state: &PathBuf) -> anyhow::Result<PathBuf> {
         let state_data = std::fs::read_to_string(state);
 
         match state_data {
