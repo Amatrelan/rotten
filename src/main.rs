@@ -61,7 +61,7 @@ fn main() -> anyhow::Result<()> {
 
             Ok(())
         }
-        cli::Commands::Link => {
+        cli::Commands::Link { overwrite } => {
             let cm = config::ConfigManager::try_load().expect("Failed to read config");
             let config = cm.get_config()?;
 
@@ -80,12 +80,20 @@ fn main() -> anyhow::Result<()> {
                 let target = utils::parse_path(&target)?;
 
                 if target.exists() {
-                    if !target.metadata().unwrap().is_symlink() {
-                        eprintln!("{target:?} already exists and isn't symlink, move it");
-                        std::process::exit(1);
+                    let is_symlink = std::fs::symlink_metadata(&target)?.is_symlink();
+                    if !is_symlink {
+                        if !overwrite {
+                            eprintln!("{target:?} already exists and isn't symlink, move it");
+                            std::process::exit(1);
+                        }
                     }
+
                     println!("Removing old link {target:?}");
-                    std::fs::remove_file(&target).expect("Failed to remove {target}");
+                    if target.metadata().unwrap().is_dir() {
+                        std::fs::remove_dir_all(&target).expect("Failed to remove {target}");
+                    } else {
+                        std::fs::remove_file(&target).expect("Failed to remove {target}");
+                    }
                 }
 
                 println!("Linking {key}: {source:?} => {target:?}");
@@ -94,6 +102,9 @@ fn main() -> anyhow::Result<()> {
             }
 
             Ok(())
+        }
+        cli::Commands::Unlink => {
+            todo!("Create unlinker")
         }
     }
 }

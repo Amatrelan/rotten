@@ -27,5 +27,9 @@ pub enum Commands {
         target: String,
     },
     /// Link all rotten managed things into places
-    Link,
+    Link {
+        #[arg(short, long)]
+        overwrite: bool,
+    },
+    Unlink,
 }
