@@ -160,7 +160,7 @@ fn generate_commented_empty() -> String {
         .split('\n')
         .fold(String::new(), |mut output, a| {
             use std::fmt::Write;
-            let _ = write!(output, "# {a}\n");
+            let _ = writeln!(output, "# {a}");
             output
         })
 }

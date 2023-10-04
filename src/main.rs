@@ -79,13 +79,11 @@ fn main() -> anyhow::Result<()> {
                 let target = value.symlink.target;
                 let target = utils::parse_path(&target)?;
 
-                if target.exists() {
-                    let is_symlink = std::fs::symlink_metadata(&target)?.is_symlink();
-                    if !is_symlink {
-                        if !overwrite {
-                            eprintln!("{target:?} already exists and isn't symlink, move it");
-                            std::process::exit(1);
-                        }
+                let is_symlink = std::fs::symlink_metadata(&target)?.is_symlink();
+                if target.exists() && !is_symlink {
+                    if !overwrite {
+                        eprintln!("{target:?} already exists and isn't symlink, move it");
+                        std::process::exit(1);
                     }
 
                     println!("Removing old link {target:?}");

@@ -26,7 +26,7 @@ pub fn parse_path(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> 
 
 pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> anyhow::Result<()> {
     if from.is_dir() {
-        std::fs::create_dir_all(&to)?;
+        std::fs::create_dir_all(to)?;
     }
     if from.is_dir() {
         let paths = std::fs::read_dir(from)?;
