@@ -1,4 +1,4 @@
-pub fn set_logger(){
+pub fn set_logger() {
     tracing_subscriber::fmt()
         // enable everything
         .with_max_level(tracing::Level::TRACE)

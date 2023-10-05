@@ -15,6 +15,7 @@ fn main() -> anyhow::Result<()> {
 
     log::set_logger();
 
+    tracing::trace!("Starting {:?}", matches);
     match matches.command {
         cli::Commands::Init => {
             let path = std::env::current_dir()?;
@@ -34,8 +35,12 @@ fn main() -> anyhow::Result<()> {
             name,
         } => {
             let source = std::path::PathBuf::from(&source);
-            let source_full = utils::parse_path(&source)?;
-            let mut cm = config::ConfigManager::try_load()?;
+            let Ok(source_full) = utils::parse_path(&source) else {
+                panic!("Failed to get full source path");
+            };
+            let Ok(mut cm) = config::ConfigManager::try_load() else {
+                panic!("Failed to load config manager");
+            };
 
             let name = if let Some(name) = name {
                 name
@@ -53,11 +58,12 @@ fn main() -> anyhow::Result<()> {
                 source,
                 target: std::path::PathBuf::from(&target),
             };
+
             cm.add_link(name, sym)?;
 
             let config_dir = cm.config_path;
             let target = config_dir.join(target);
-            utils::copy_recursive(&source_full, &target)?;
+            utils::copy_recursive(&source_full, &target).expect("Failed to copy recursive");
 
             Ok(())
         }
@@ -79,13 +85,19 @@ fn main() -> anyhow::Result<()> {
                 let target = value.symlink.target;
                 let target = utils::parse_path(&target)?;
 
-                let is_symlink = std::fs::symlink_metadata(&target)?.is_symlink();
+                let is_symlink = if let Ok(symlink_metadata) = std::fs::symlink_metadata(&target) {
+                    symlink_metadata.is_symlink()
+                } else {
+                    false
+                };
+
                 if target.exists() && !is_symlink {
                     if !overwrite {
-                        eprintln!("{target:?} already exists and isn't symlink, move it");
+                        println!("{target:?} already exists and isn't symlink, move it");
                         std::process::exit(1);
                     }
-
+                }
+                if target.exists() {
                     println!("Removing old link {target:?}");
                     if target.metadata().unwrap().is_dir() {
                         std::fs::remove_dir_all(&target).expect("Failed to remove {target}");
@@ -95,8 +107,10 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 println!("Linking {key}: {source:?} => {target:?}");
-                std::os::unix::fs::symlink(source, target)
-                    .expect("Failed to symlink {source} to {target}");
+                if std::os::unix::fs::symlink(&source, &target).is_err() {
+                    tracing::error!("Failed to symlink {source:?} to {target:?}");
+                    std::process::exit(1);
+                }
             }
 
             Ok(())

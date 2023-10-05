@@ -31,5 +31,6 @@ pub enum Commands {
         #[arg(short, long)]
         overwrite: bool,
     },
+    /// Unlink all existing symlinks (not working yet)
     Unlink,
 }

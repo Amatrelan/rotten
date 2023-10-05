@@ -1,4 +1,6 @@
+#[tracing::instrument]
 pub fn parse_path(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> {
+    tracing::trace!("Finding correct path");
     let mut new_path: Vec<String> = vec![];
     for each in path.components() {
         let each = each.as_os_str().to_str().unwrap();
@@ -21,10 +23,13 @@ pub fn parse_path(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> 
         path = path[1..].to_string();
     }
     let path = std::path::PathBuf::from(path);
+    tracing::trace!("New path is {path:?}");
     Ok(path)
 }
 
+#[tracing::instrument]
 pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> anyhow::Result<()> {
+    tracing::trace!("Copying file recursive");
     if from.is_dir() {
         std::fs::create_dir_all(to)?;
     }
