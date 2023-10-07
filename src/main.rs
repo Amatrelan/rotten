@@ -6,27 +6,43 @@ use clap::Parser;
 
 mod cli;
 mod config;
-mod log;
+mod logging;
 mod utils;
 
 #[cfg(unix)]
 fn main() -> anyhow::Result<()> {
     let matches = cli::Cli::parse();
 
-    log::set_logger();
+    let log_level: log::LevelFilter = match matches.verbosity {
+        1 => log::LevelFilter::Error,
+        2 => log::LevelFilter::Warn,
+        3 => log::LevelFilter::Info,
+        4 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::Trace,
+    };
 
-    tracing::trace!("Starting {:?}", matches);
+    logging::set_logger(log_level);
+
+    log::trace!("Starting {:?}", matches);
     match matches.command {
-        cli::Commands::Init => {
+        cli::Commands::Init { overwrite } => {
             let path = std::env::current_dir()?;
-            let cm = config::ConfigManager::try_new(&path).expect("Failed to setup state file");
+            let mut cm = config::ConfigManager::try_new(&path, overwrite)
+                .expect("Failed to setup state file");
             cm.setup_config().expect("Failed to setup config file");
-            println!("Initialized rotten to {path:?}");
+            log::info!("Initialized rotten to {path:?}");
             Ok(())
         }
         cli::Commands::Setup => {
             let path = std::env::current_dir()?;
-            config::ConfigManager::try_new(&path).expect("Failed to setup state file");
+            let current = std::env::current_dir()?;
+            if !current.join("rotten.toml").exists() {
+                log::error!("Current folder ({path:?}) isn't rotten folder");
+                std::process::exit(1);
+            }
+
+            config::ConfigManager::try_new(&path, true).expect("Failed to setup state file");
+
             Ok(())
         }
         cli::Commands::Add {
@@ -49,19 +65,11 @@ fn main() -> anyhow::Result<()> {
                 source.split('/').last().unwrap().to_string()
             };
 
-            if !source.exists() {
-                anyhow::bail!("Source {source:?} doesn't exist");
-            }
+            log::info!("Creating link `{:?}` => `{:?}`", &source_full, &target);
+            let symlink = config::Symlink::new(source, std::path::PathBuf::from(&target));
+            cm.add_link(name, symlink)?;
 
-            println!("Creating link `{:?}` => `{:?}`", &source_full, &target);
-            let sym = config::Symlink {
-                source,
-                target: std::path::PathBuf::from(&target),
-            };
-
-            cm.add_link(name, sym)?;
-
-            let config_dir = cm.config_path;
+            let config_dir = cm.config_root;
             let target = config_dir.join(target);
             utils::copy_recursive(&source_full, &target).expect("Failed to copy recursive");
 
@@ -74,42 +82,13 @@ fn main() -> anyhow::Result<()> {
             for (key, value) in config.links {
                 if let Some(disabled) = value.disabled {
                     if disabled {
-                        println!("\"{key}\" was disabled, skipping");
+                        log::debug!("\"{key}\" was disabled, skipping");
                         continue;
                     }
                 }
 
-                let source = value.symlink.source;
-                let source = cm.config_path.join(source);
-
-                let target = value.symlink.target;
-                let target = utils::parse_path(&target)?;
-
-                let is_symlink = if let Ok(symlink_metadata) = std::fs::symlink_metadata(&target) {
-                    symlink_metadata.is_symlink()
-                } else {
-                    false
-                };
-
-                if target.exists() && !is_symlink {
-                    if !overwrite {
-                        println!("{target:?} already exists and isn't symlink, move it");
-                        std::process::exit(1);
-                    }
-                }
-                if target.exists() {
-                    println!("Removing old link {target:?}");
-                    if target.metadata().unwrap().is_dir() {
-                        std::fs::remove_dir_all(&target).expect("Failed to remove {target}");
-                    } else {
-                        std::fs::remove_file(&target).expect("Failed to remove {target}");
-                    }
-                }
-
-                println!("Linking {key}: {source:?} => {target:?}");
-                if std::os::unix::fs::symlink(&source, &target).is_err() {
-                    tracing::error!("Failed to symlink {source:?} to {target:?}");
-                    std::process::exit(1);
+                if let Err(e) = value.symlink.link(overwrite, &cm.config_root) {
+                    log::error!("{e}");
                 }
             }
 

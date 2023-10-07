@@ -4,13 +4,21 @@ use clap::{Parser, Subcommand};
 pub struct Cli {
     #[clap(subcommand)]
     pub command: Commands,
+    #[arg(short, long, default_value_t = 1, action = clap::ArgAction::Count)]
+    pub verbosity: u8,
 }
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     /// Initialize rotten folder
-    Init,
+    Init {
+        /// If overwrite is given then it will write state file
+        #[arg(short, long)]
+        overwrite: bool,
+    },
     /// Setups state file, run in folder where your rotten.toml is
+    ///
+    /// Setup will overwrite state file always
     Setup,
     /// Add new path to rotten, this will copy/move `source` path to `target` path and automatically
     /// symlink it back to `source` path
