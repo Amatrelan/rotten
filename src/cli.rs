@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 pub struct Cli {
     #[clap(subcommand)]
     pub command: Commands,
-    #[arg(short, long, default_value_t = 1, action = clap::ArgAction::Count)]
+    #[arg(short, long, default_value_t = 3, action = clap::ArgAction::Count)]
     pub verbosity: u8,
 }
 

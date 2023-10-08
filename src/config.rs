@@ -16,11 +16,24 @@ pub struct ConfigManager {
 
 impl ConfigManager {
     pub fn try_new(config_path: &PathBuf, overwrite: bool) -> anyhow::Result<Self> {
-        let state_path = get_state_path()?;
+        let state_path = match get_state_path() {
+            Ok(val) => val,
+            Err(e) => anyhow::bail!("Failed to get state path: {e}"),
+        };
+
         log::info!("State file: {:?}", state_path);
 
-        let mut f = std::fs::File::create(&state_path).expect("Failed to create state file");
-        f.write_all(config_path.to_str().unwrap().as_bytes())?;
+        if state_path.exists() && !overwrite {
+            anyhow::bail!("State path exists, and overwrite is not enabled");
+        }
+
+        let Ok(mut f) = std::fs::File::create(&state_path) else {
+            anyhow::bail!("Failed to create state file to {state_path:?}");
+        };
+
+        if let Err(e) = f.write_all(config_path.to_str().unwrap().as_bytes()) {
+            anyhow::bail!("Failed to write config path to state file: {e}");
+        }
 
         let mut new = Self {
             state_path,
@@ -35,8 +48,9 @@ impl ConfigManager {
 
     pub fn try_load() -> anyhow::Result<Self> {
         let state = get_state_path()?;
-        log::info!("State file: {:?}", state);
+        log::info!("State file: {state:?}");
         let config_root = Self::get_config_root(&state)?;
+        log::info!("Config root: {config_root:?}");
 
         Ok(Self {
             state_path: state,
@@ -47,7 +61,11 @@ impl ConfigManager {
 
     pub fn setup_config(&mut self) -> anyhow::Result<()> {
         let config_path = self.config_root.join("rotten.toml");
-        let mut f = std::fs::File::create(config_path).expect("Failed to create config file");
+
+        let Ok(mut f) = std::fs::File::create(config_path) else {
+            anyhow::bail!("Failed to create config file");
+        };
+
         let c = generate_empty();
 
         f.write_all(c.as_bytes())?;

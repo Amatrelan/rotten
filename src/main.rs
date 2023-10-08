@@ -65,8 +65,8 @@ fn main() -> anyhow::Result<()> {
                 source.split('/').last().unwrap().to_string()
             };
 
-            log::info!("Creating link `{:?}` => `{:?}`", &source_full, &target);
             let symlink = config::Symlink::new(source, std::path::PathBuf::from(&target));
+            log::info!("Creating {symlink}");
             cm.add_link(name, symlink)?;
 
             let config_dir = cm.config_root;
@@ -82,7 +82,7 @@ fn main() -> anyhow::Result<()> {
             for (key, value) in config.links {
                 if let Some(disabled) = value.disabled {
                     if disabled {
-                        log::debug!("\"{key}\" was disabled, skipping");
+                        log::info!("\"{key}\" was disabled, skipping");
                         continue;
                     }
                 }

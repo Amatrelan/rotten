@@ -33,7 +33,8 @@ impl Symlink {
 
         if let Ok(a) = std::fs::read_link(&to_pathbuf) {
             if a == from_pathbuf {
-                anyhow::bail!("{from_pathbuf:?} already points to correct place, skipping")
+                log::info!("{from_pathbuf:?} already points to correct place, skipping");
+                return Ok(());
             }
         }
 
@@ -54,7 +55,7 @@ impl Symlink {
         }
 
         if let Err(e) = std::os::unix::fs::symlink(&from_pathbuf, &to_pathbuf) {
-            anyhow::bail!("Failed to symlink: {from_pathbuf:?} => {to_pathbuf:?} :: {e}");
+            anyhow::bail!("Failed: {self} :: {e}");
         }
 
         Ok(())
