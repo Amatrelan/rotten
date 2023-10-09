@@ -3,6 +3,7 @@
 /// # TODO list
 /// - add md5 checksumming and validate files after.
 use clap::Parser;
+use color_eyre::eyre;
 
 mod cli;
 mod config;
@@ -65,8 +66,14 @@ fn main() -> Result<()> {
             let name = if let Some(name) = name {
                 name
             } else {
-                let source = source.to_str().unwrap();
-                source.split('/').last().unwrap().to_string()
+                let source = source
+                    .to_str()
+                    .ok_or(eyre::eyre!("Failed to convert {source:?} to str"))?;
+                source
+                    .split('/')
+                    .last()
+                    .ok_or(eyre::eyre!("Failed to take last from {source:?}"))?
+                    .to_string()
             };
 
             let symlink = config::Symlink::new(source, std::path::PathBuf::from(&target));

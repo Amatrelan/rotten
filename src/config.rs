@@ -23,7 +23,12 @@ impl ConfigManager {
 
         let mut f = std::fs::File::create(&state_path)?;
 
-        f.write_all(config_path.to_str().unwrap().as_bytes())?;
+        f.write_all(
+            config_path
+                .to_str()
+                .ok_or(eyre!("Failed to write to {config_path:?}"))?
+                .as_bytes(),
+        )?;
 
         let mut new = Self {
             state_path,
@@ -83,8 +88,14 @@ impl ConfigManager {
         let links = config_data["links"]
             .as_table_mut()
             .expect("Links wasn't table");
-        let target = link.to.to_str().unwrap();
-        let source = link.from.to_str().unwrap();
+        let target = link
+            .to
+            .to_str()
+            .ok_or(eyre!("Failed to convert {link:?}.to to str"))?;
+        let source = link
+            .from
+            .to_str()
+            .ok_or(eyre!("Failed to convert {link:?}.from to str"))?;
         links[&name] = toml_edit::table();
         links[&name]["source"] = toml_edit::value(target);
         links[&name]["target"] = toml_edit::value(source);

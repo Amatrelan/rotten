@@ -4,7 +4,10 @@ pub fn parse_path(path: &std::path::Path) -> Result<std::path::PathBuf> {
     log::trace!("Finding correct path");
     let mut new_path: Vec<String> = vec![];
     for each in path.components() {
-        let each = each.as_os_str().to_str().unwrap();
+        let each = each
+            .as_os_str()
+            .to_str()
+            .ok_or(eyre!("Failed to convert {each:?} to str"))?;
         if each == "~" {
             let val = std::env::var("HOME")?;
             new_path.push(val);
@@ -37,16 +40,21 @@ pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> Res
         let paths = std::fs::read_dir(from)?;
         for path in paths {
             let path = path?;
+            let file_name = path.path();
+            let file_name = file_name
+                .file_name()
+                .ok_or(eyre!("Failed to get file name from {path:?}"))?;
+
             if path.metadata()?.is_dir() {
-                let from_new_path = from.join(path.path().file_name().unwrap());
-                let to_new_path = to.join(path.path().file_name().unwrap());
+                let from_new_path = from.join(&file_name);
+                let to_new_path = to.join(&file_name);
                 copy_recursive(&from_new_path, &to_new_path)?;
                 continue;
             }
 
             if path.metadata()?.is_file() {
-                let from_path = from.join(path.path().file_name().unwrap());
-                let to_path = to.join(path.path().file_name().unwrap());
+                let from_path = from.join(&file_name);
+                let to_path = to.join(&file_name);
                 if to_path.exists() {
                     return Err(eyre!("File {to_path:?} already exists"));
                 }
