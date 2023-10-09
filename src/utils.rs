@@ -1,4 +1,6 @@
-pub fn parse_path(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> {
+use color_eyre::{eyre::eyre, Result};
+
+pub fn parse_path(path: &std::path::Path) -> Result<std::path::PathBuf> {
     log::trace!("Finding correct path");
     let mut new_path: Vec<String> = vec![];
     for each in path.components() {
@@ -26,7 +28,7 @@ pub fn parse_path(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> 
     Ok(path)
 }
 
-pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> anyhow::Result<()> {
+pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> Result<()> {
     log::trace!("Copying file recursive");
     if from.is_dir() {
         std::fs::create_dir_all(to)?;
@@ -46,7 +48,7 @@ pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> any
                 let from_path = from.join(path.path().file_name().unwrap());
                 let to_path = to.join(path.path().file_name().unwrap());
                 if to_path.exists() {
-                    anyhow::bail!("File {to_path:?} already exists");
+                    return Err(eyre!("File {to_path:?} already exists"));
                 }
                 log::info!("Copying {from_path:?} to {to_path:?}");
                 std::fs::copy(&from_path, &to_path)?;
@@ -54,7 +56,7 @@ pub fn copy_recursive(from: &std::path::PathBuf, to: &std::path::PathBuf) -> any
         }
     } else {
         if to.exists() {
-            anyhow::bail!("File {to:?} already exists");
+            return Err(eyre!("File {to:?} already exists"));
         }
         std::fs::copy(from, to)?;
     }

@@ -9,8 +9,12 @@ mod config;
 mod logging;
 mod utils;
 
+use color_eyre::eyre::Result;
+
 #[cfg(unix)]
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
+    let _ = color_eyre::install();
+
     let matches = cli::Cli::parse();
 
     let log_level: log::LevelFilter = match matches.verbosity {
@@ -75,21 +79,15 @@ fn main() -> anyhow::Result<()> {
 
             Ok(())
         }
-        cli::Commands::Link { overwrite } => {
+        cli::Commands::Link {
+            overwrite,
+            profiles,
+        } => {
             let cm = config::ConfigManager::try_load().expect("Failed to read config");
-            let config = cm.get_config()?;
 
-            for (key, value) in config.links {
-                if let Some(disabled) = value.disabled {
-                    if disabled {
-                        log::info!("\"{key}\" was disabled, skipping");
-                        continue;
-                    }
-                }
-
-                if let Err(e) = value.symlink.link(overwrite, &cm.config_root) {
-                    log::error!("{e}");
-                }
+            for each in profiles {
+                log::info!("Symlinking profile: {each}");
+                cm.symlink_profile(overwrite, each)?;
             }
 
             Ok(())

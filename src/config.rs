@@ -1,3 +1,4 @@
+use color_eyre::eyre::{eyre, Result};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::{collections::HashMap, path::PathBuf};
@@ -15,21 +16,14 @@ pub struct ConfigManager {
 }
 
 impl ConfigManager {
-    pub fn try_new(config_path: &PathBuf, overwrite: bool) -> anyhow::Result<Self> {
-        let state_path = match get_state_path() {
-            Ok(val) => val,
-            Err(e) => anyhow::bail!("Failed to get state path: {e}"),
-        };
+    pub fn try_new(config_path: &PathBuf, overwrite: bool) -> Result<Self> {
+        let state_path = get_state_path()?;
 
         log::info!("State file: {:?}", state_path);
 
-        let Ok(mut f) = std::fs::File::create(&state_path) else {
-            anyhow::bail!("Failed to create state file to {state_path:?}");
-        };
+        let mut f = std::fs::File::create(&state_path)?;
 
-        if let Err(e) = f.write_all(config_path.to_str().unwrap().as_bytes()) {
-            anyhow::bail!("Failed to write config path to state file: {e}");
-        }
+        f.write_all(config_path.to_str().unwrap().as_bytes())?;
 
         let mut new = Self {
             state_path,
@@ -39,47 +33,47 @@ impl ConfigManager {
 
         if overwrite {
             new.setup_config()?;
-        } 
+        }
 
         Ok(new)
     }
 
-    pub fn try_load() -> anyhow::Result<Self> {
+    pub fn try_load() -> Result<Self> {
         let state = get_state_path()?;
         log::info!("State file: {state:?}");
         let config_root = Self::get_config_root(&state)?;
         log::info!("Config root: {config_root:?}");
 
-        Ok(Self {
+        let mut a = Self {
             state_path: state,
             config_root,
             config: None,
-        })
-    }
-
-    pub fn setup_config(&mut self) -> anyhow::Result<()> {
-        let config_path = self.config_root.join("rotten.toml");
-
-        let Ok(mut f) = std::fs::File::create(config_path) else {
-            anyhow::bail!("Failed to create config file");
         };
 
-        let c = generate_empty();
+        a.get_config()?;
 
+        Ok(a)
+    }
+
+    pub fn setup_config(&mut self) -> Result<()> {
+        let config_path = self.config_root.join("rotten.toml");
+        let mut f = std::fs::File::create(config_path)?;
+        let c = generate_empty();
         f.write_all(c.as_bytes())?;
+
         Ok(())
     }
 
-    pub fn get_config(&self) -> anyhow::Result<Config> {
+    fn get_config(&mut self) -> Result<()> {
         let f = std::fs::read_to_string(self.config_root.join("rotten.toml"))
             .expect("Failed to read config file content");
 
         let a: Config = toml_edit::de::from_str(&f).expect("Failed to read config file");
-
-        return Ok(a);
+        self.config = Some(a);
+        Ok(())
     }
 
-    pub fn add_link(&mut self, name: String, link: Symlink) -> anyhow::Result<()> {
+    pub fn add_link(&mut self, name: String, link: Symlink) -> Result<()> {
         let mut config_data = {
             let data = std::fs::read_to_string(self.config_root.join("rotten.toml"))?;
             let toml: toml_edit::Document = data.parse()?;
@@ -100,6 +94,27 @@ impl ConfigManager {
         Ok(())
     }
 
+    pub fn symlink_profile(&self, overwrite: bool, profile: String) -> Result<()> {
+        if let Some(config) = &self.config {
+            if let Some(profiles) = &config.profiles {
+                let profile_tools = profiles
+                    .get(&profile)
+                    .ok_or(eyre!("Failed to get profile: {profile}"))?;
+
+                for active in profile_tools {
+                    config
+                        .links
+                        .get(active)
+                        .ok_or(eyre!("No symlink {active}"))?
+                        .symlink
+                        .link(overwrite, &self.config_root)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn write_config(&mut self, config: toml_edit::Document) {
         let mut f = std::fs::File::create(self.config_root.join("rotten.toml"))
             .expect("Failed to create config file");
@@ -109,34 +124,21 @@ impl ConfigManager {
             .expect("Failed to write config file");
     }
 
-    pub fn set_config_path(&self, p: &str) {
-        let mut f =
-            std::fs::File::create(&self.state_path).expect("Failed to open rotten state file");
-        f.write_all(p.as_bytes())
-            .expect("Failed to write to state file");
-    }
+    pub fn get_config_root(state: &PathBuf) -> Result<PathBuf> {
+        let state_data = std::fs::read_to_string(state)?;
 
-    pub fn get_config_root(state: &PathBuf) -> anyhow::Result<PathBuf> {
-        let state_data = std::fs::read_to_string(state);
-
-        match state_data {
-            Err(e) => {
-                anyhow::bail!("Failed to read state file: {e}")
+        if let Some(line) = state_data.lines().next() {
+            let file_path = std::path::PathBuf::from(line);
+            match file_path.exists() {
+                true => return Ok(file_path),
+                false => return Err(eyre!("Config file doesn't exist what is in state file")),
             }
-            Ok(val) => match val.lines().next() {
-                None => anyhow::bail!("State file don't have config path"),
-                Some(line) => {
-                    let file_path = std::path::PathBuf::from(line);
-                    match file_path.exists() {
-                        true => Ok(file_path),
-                        false => anyhow::bail!("Config file doesn't exist what is in state file"),
-                    }
-                }
-            },
         }
+
+        Err(eyre!("No state file found"))
     }
 }
-fn get_state_path() -> anyhow::Result<PathBuf> {
+fn get_state_path() -> Result<PathBuf> {
     let config_path = if let Ok(xsd_state_home) = std::env::var("XSD_STATE_HOME") {
         xsd_state_home
     } else {
@@ -150,6 +152,7 @@ fn get_state_path() -> anyhow::Result<PathBuf> {
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Config {
     // pub terminal: Option<String>,
+    pub profiles: Option<HashMap<String, Vec<String>>>,
     pub links: HashMap<String, LinkConfig>,
 }
 
@@ -163,6 +166,9 @@ pub struct LinkConfig {
 #[allow(dead_code)]
 fn generate_empty() -> &'static str {
     r#"
+[profiles]
+example = ['nvim']
+
 [links.nvim]
 disabled = true # You can disable also some links
 from = "nvim" # path in rotten folder what is linked
@@ -174,9 +180,14 @@ to = "$HOME/.config/nvim" # where source is linked
 mod config {
     use super::*;
 
+    use pretty_assertions::{assert_eq, assert_ne};
+
     #[test]
     fn validate_example() {
         let template = generate_empty();
-        toml_edit::de::from_str::<Config>(template).unwrap();
+        let a = toml_edit::de::from_str::<Config>(template).unwrap();
+        let mut expected = HashMap::new();
+        expected.insert("example".to_string(), vec!["nvima".to_string()]);
+        assert_eq!(a.profiles.unwrap(), expected)
     }
 }

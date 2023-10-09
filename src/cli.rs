@@ -38,6 +38,8 @@ pub enum Commands {
     Link {
         #[arg(short, long)]
         overwrite: bool,
+        #[arg(short, long)]
+        profiles: Vec<String>,
     },
     /// Unlink all existing symlinks (not working yet)
     Unlink,

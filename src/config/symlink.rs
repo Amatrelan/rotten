@@ -1,3 +1,5 @@
+use color_eyre::eyre::eyre;
+use color_eyre::Result;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -21,14 +23,14 @@ impl Symlink {
         Self { from, to }
     }
 
-    pub fn link(&self, overwrite: bool, config_root: &Path) -> anyhow::Result<()> {
+    pub fn link(&self, overwrite: bool, config_root: &Path) -> Result<()> {
         let to_pathbuf = self.get_to();
         let to_path = to_pathbuf.to_str().unwrap();
 
         let from_pathbuf = self.get_from(&config_root);
         if !from_pathbuf.exists() {
             let from_path = from_pathbuf.to_str().unwrap();
-            anyhow::bail!("\"{from_path} doesn't exist\"");
+            return Err(eyre!("\"{from_path} doesn't exist\""));
         }
 
         if let Ok(a) = std::fs::read_link(&to_pathbuf) {
@@ -40,22 +42,22 @@ impl Symlink {
 
         if to_pathbuf.exists() {
             if !overwrite {
-                anyhow::bail!("\"{to_path}\" exists");
+                return Err(eyre!("\"{to_path}\" exists"));
             }
 
             if self.is_dir(&config_root) {
                 if let Err(e) = std::fs::remove_dir_all(&to_pathbuf) {
-                    anyhow::bail!("\"{to_path}\" removal failed: {e}")
+                    return Err(eyre!("\"{to_path}\" removal failed: {e}"));
                 }
             } else {
                 if let Err(e) = std::fs::remove_file(&to_pathbuf) {
-                    anyhow::bail!("\"{to_path}\" removal failed: {e}")
+                    return Err(eyre!("\"{to_path}\" removal failed: {e}"));
                 }
             }
         }
 
         if let Err(e) = std::os::unix::fs::symlink(&from_pathbuf, &to_pathbuf) {
-            anyhow::bail!("Failed: {self} :: {e}");
+            return Err(eyre!("Failed: {self} :: {e}"));
         }
 
         Ok(())
