@@ -23,10 +23,6 @@ impl ConfigManager {
 
         log::info!("State file: {:?}", state_path);
 
-        if state_path.exists() && !overwrite {
-            anyhow::bail!("State path exists, and overwrite is not enabled");
-        }
-
         let Ok(mut f) = std::fs::File::create(&state_path) else {
             anyhow::bail!("Failed to create state file to {state_path:?}");
         };
@@ -41,7 +37,9 @@ impl ConfigManager {
             config: None,
         };
 
-        new.setup_config()?;
+        if overwrite {
+            new.setup_config()?;
+        } 
 
         Ok(new)
     }

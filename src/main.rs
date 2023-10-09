@@ -41,7 +41,7 @@ fn main() -> anyhow::Result<()> {
                 std::process::exit(1);
             }
 
-            config::ConfigManager::try_new(&path, true).expect("Failed to setup state file");
+            config::ConfigManager::try_new(&path, false).expect("Failed to setup state file");
 
             Ok(())
         }

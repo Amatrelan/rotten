@@ -12,7 +12,7 @@ pub struct Cli {
 pub enum Commands {
     /// Initialize rotten folder
     Init {
-        /// If overwrite is given then it will write state file
+        /// If overwrite is given then this will generate new rotten.toml 
         #[arg(short, long)]
         overwrite: bool,
     },
