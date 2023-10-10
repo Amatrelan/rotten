@@ -15,9 +15,7 @@ use color_eyre::eyre::Result;
 #[cfg(unix)]
 fn main() -> Result<()> {
     let _ = color_eyre::install();
-
     let matches = cli::Cli::parse();
-
     let log_level: log::LevelFilter = match matches.verbosity {
         1 => log::LevelFilter::Error,
         2 => log::LevelFilter::Warn,
@@ -28,7 +26,6 @@ fn main() -> Result<()> {
 
     logging::set_logger(log_level);
 
-    log::trace!("Starting {:?}", matches);
     match matches.command {
         cli::Commands::Init { overwrite } => {
             let path = std::env::current_dir()?;
