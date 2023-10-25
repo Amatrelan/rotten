@@ -9,7 +9,6 @@ edition = "2021"
 clap = { version = "4.4.6", features = ["cargo", "derive"] }
 color-eyre = "0.6.2"
 log = { version = "0.4.20", features = ["kv_unstable"] }
-paris = "1.5.15"
 pretty_assertions = "1.4.0"
 serde = { version = "1.0.188", features = ["derive"] }
 simplelog = { version = "0.12.1" }
