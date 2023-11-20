@@ -19,10 +19,6 @@ impl std::fmt::Display for Symlink {
 }
 
 impl Symlink {
-    pub fn new(from: PathBuf, to: PathBuf) -> Self {
-        Self { from, to }
-    }
-
     pub fn link(&self, overwrite: bool, config_root: &Path) -> Result<()> {
         let to_pathbuf = self.get_to();
         let to_path = to_pathbuf.to_str().unwrap();

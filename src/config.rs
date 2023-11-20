@@ -2,9 +2,7 @@ use color_eyre::eyre::{eyre, Result};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::{collections::HashMap, path::PathBuf};
-
 mod symlink;
-
 pub use symlink::Symlink;
 
 #[allow(dead_code)]
@@ -78,33 +76,6 @@ impl ConfigManager {
         Ok(())
     }
 
-    pub fn add_link(&mut self, name: String, link: Symlink) -> Result<()> {
-        let mut config_data = {
-            let data = std::fs::read_to_string(self.config_root.join("rotten.toml"))?;
-            let toml: toml_edit::Document = data.parse()?;
-            toml
-        };
-
-        let links = config_data["links"]
-            .as_table_mut()
-            .expect("Links wasn't table");
-        let target = link
-            .to
-            .to_str()
-            .ok_or(eyre!("Failed to convert {link:?}.to to str"))?;
-        let source = link
-            .from
-            .to_str()
-            .ok_or(eyre!("Failed to convert {link:?}.from to str"))?;
-        links[&name] = toml_edit::table();
-        links[&name]["source"] = toml_edit::value(target);
-        links[&name]["target"] = toml_edit::value(source);
-
-        self.write_config(config_data);
-
-        Ok(())
-    }
-
     pub fn symlink_profile(&self, overwrite: bool, profile: String) -> Result<()> {
         if let Some(config) = &self.config {
             if let Some(profiles) = &config.profiles {
@@ -124,15 +95,6 @@ impl ConfigManager {
         }
 
         Ok(())
-    }
-
-    pub fn write_config(&mut self, config: toml_edit::Document) {
-        let mut f = std::fs::File::create(self.config_root.join("rotten.toml"))
-            .expect("Failed to create config file");
-
-        let config = config.to_string();
-        f.write_all(config.as_bytes())
-            .expect("Failed to write config file");
     }
 
     pub fn get_config_root(state: &PathBuf) -> Result<PathBuf> {

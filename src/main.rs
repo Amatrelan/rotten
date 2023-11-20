@@ -3,8 +3,6 @@
 /// # TODO list
 /// - add md5 checksumming and validate files after.
 use clap::Parser;
-use color_eyre::eyre;
-
 mod cli;
 mod config;
 mod logging;
@@ -44,42 +42,6 @@ fn main() -> Result<()> {
             }
 
             config::ConfigManager::try_new(&path, false).expect("Failed to setup state file");
-
-            Ok(())
-        }
-        cli::Commands::Add {
-            source,
-            target,
-            name,
-        } => {
-            let source = std::path::PathBuf::from(&source);
-            let Ok(source_full) = utils::parse_path(&source) else {
-                panic!("Failed to get full source path");
-            };
-            let Ok(mut cm) = config::ConfigManager::try_load() else {
-                panic!("Failed to load config manager");
-            };
-
-            let name = if let Some(name) = name {
-                name
-            } else {
-                let source = source
-                    .to_str()
-                    .ok_or(eyre::eyre!("Failed to convert {source:?} to str"))?;
-                source
-                    .split('/')
-                    .last()
-                    .ok_or(eyre::eyre!("Failed to take last from {source:?}"))?
-                    .to_string()
-            };
-
-            let symlink = config::Symlink::new(source, std::path::PathBuf::from(&target));
-            log::info!("Creating {symlink}");
-            cm.add_link(name, symlink)?;
-
-            let config_dir = cm.config_root;
-            let target = config_dir.join(target);
-            utils::copy_recursive(&source_full, &target).expect("Failed to copy recursive");
 
             Ok(())
         }
