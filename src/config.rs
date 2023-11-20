@@ -71,7 +71,7 @@ impl ConfigManager {
         let f = std::fs::read_to_string(self.config_root.join("rotten.toml"))
             .expect("Failed to read config file content");
 
-        let a: Config = toml_edit::de::from_str(&f).expect("Failed to read config file");
+        let a: Config = toml::from_str(&f).expect("Failed to read config file");
         self.config = Some(a);
         Ok(())
     }
@@ -153,14 +153,14 @@ to = "$HOME/.config/nvim" # where source is linked
 mod config {
     use super::*;
 
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn validate_example() {
         let template = generate_empty();
-        let a = toml_edit::de::from_str::<Config>(template).unwrap();
+        let a = toml::from_str::<Config>(template).unwrap();
         let mut expected = HashMap::new();
-        expected.insert("example".to_string(), vec!["nvima".to_string()]);
+        expected.insert("example".to_string(), vec!["nvim".to_string()]);
         assert_eq!(a.profiles.unwrap(), expected)
     }
 }
