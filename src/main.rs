@@ -1,7 +1,5 @@
 /// Simple tool to symlink dotfiles
 ///
-/// # TODO list
-/// - add md5 checksumming and validate files after.
 use clap::Parser;
 mod cli;
 mod config;
